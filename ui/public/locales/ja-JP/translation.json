@@ -2,6 +2,7 @@
   "common": {
     "initializing": "初期化中...",
     "cancel": "キャンセル",
+    "confirm": "確認",
     "save": "保存",
     "saved": "保存しました！"
   },
@@ -36,7 +37,8 @@
     "github": "GitHub",
     "version": "バージョン: {{version}}",
     "versionUnknown": "バージョン: 不明",
-    "language": "言語"
+    "language": "言語",
+    "processFromPage": "指定ページから処理..."
   },
   "welcome": {
     "title": "Koharu",
@@ -411,5 +413,12 @@
     },
     "close": "閉じる",
     "retry": "再試行"
+  },
+  "processFromPage": {
+    "title": "指定ページから処理",
+    "description": "指定したページから {{total}} ページ目まで処理します。",
+    "startPage": "開始ページ",
+    "rangeHint": "1 から {{total}} までのページ番号を入力してください。",
+    "rangeError": "1 から {{total}} までの整数ページ番号を入力してください。"
   }
 }

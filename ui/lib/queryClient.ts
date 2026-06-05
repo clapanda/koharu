@@ -2,6 +2,8 @@
 
 import { QueryClient } from '@tanstack/react-query'
 
+import { installBlobImageUrlCleanup } from '@/hooks/useBlobData'
+
 /**
  * Shared singleton QueryClient. React components mount it via the provider in
  * `app/providers.tsx`; non-React modules import it directly to run
@@ -11,3 +13,5 @@ import { QueryClient } from '@tanstack/react-query'
  * calls and React Query hooks share the exact same cache.
  */
 export const queryClient = new QueryClient()
+
+installBlobImageUrlCleanup(queryClient)
