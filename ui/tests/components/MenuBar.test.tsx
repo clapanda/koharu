@@ -63,6 +63,68 @@ describe('MenuBar', () => {
     })
   })
 
+  it('starts a pipeline from the requested page through the end', async () => {
+    const pages = {
+      'page-1': { id: 'page-1', name: '001.png', nodes: {} },
+      'page-2': { id: 'page-2', name: '002.png', nodes: {} },
+      'page-3': { id: 'page-3', name: '003.png', nodes: {} },
+    }
+    const pipelineRequests: unknown[] = []
+    const config = {
+      pipeline: {
+        detector: 'detector',
+        segmenter: 'segmenter',
+        bubble_segmenter: 'bubble',
+        font_detector: 'font',
+        ocr: 'ocr',
+        translator: 'translator',
+        inpainter: 'inpainter',
+        renderer: 'renderer',
+      },
+    }
+    server.use(
+      http.get('/api/v1/scene.json', () =>
+        HttpResponse.json({
+          epoch: 0,
+          scene: { pages, project: { name: 'P' } as never },
+        }),
+      ),
+      http.get('/api/v1/config', () => HttpResponse.json(config)),
+      http.post('/api/v1/pipelines', async ({ request }) => {
+        pipelineRequests.push(await request.json())
+        return HttpResponse.json({ operationId: 'job-1' })
+      }),
+    )
+    queryClient.setQueryData(getGetSceneJsonQueryKey(), {
+      epoch: 0,
+      scene: { pages, project: { name: 'P' } },
+    })
+    queryClient.setQueryData(getGetConfigQueryKey(), config)
+
+    renderWithQuery(<MenuBar />)
+    await userEvent.click(screen.getByTestId('menu-process-trigger'))
+    await userEvent.click(await screen.findByTestId('menu-process-from-page'))
+    const input = await screen.findByTestId('process-from-page-input')
+    await userEvent.clear(input)
+    await userEvent.type(input, '2')
+    await userEvent.click(screen.getByTestId('process-from-page-submit'))
+
+    await waitFor(() => expect(pipelineRequests).toHaveLength(1))
+    expect(pipelineRequests[0]).toMatchObject({
+      steps: [
+        'detector',
+        'segmenter',
+        'bubble',
+        'font',
+        'ocr',
+        'translator',
+        'inpainter',
+        'renderer',
+      ],
+      pages: ['page-2', 'page-3'],
+    })
+  })
+
   it('Close Project is disabled when no project is open', async () => {
     // Clear seeded cache + point /scene.json at the 400 response so useScene
     // resolves to null.

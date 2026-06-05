@@ -2,6 +2,7 @@
   "common": {
     "initializing": "初始化中...",
     "cancel": "取消",
+    "confirm": "确认",
     "save": "保存",
     "saved": "已保存！"
   },
@@ -36,7 +37,8 @@
     "github": "GitHub",
     "version": "版本：{{version}}",
     "versionUnknown": "版本：未知",
-    "language": "语言"
+    "language": "语言",
+    "processFromPage": "从指定页开始处理..."
   },
   "welcome": {
     "title": "Koharu",
@@ -411,5 +413,12 @@
     },
     "close": "关闭",
     "retry": "重试"
+  },
+  "processFromPage": {
+    "title": "从指定页开始处理",
+    "description": "将从选择的页码处理到第 {{total}} 页。",
+    "startPage": "起始页码",
+    "rangeHint": "请输入 1 到 {{total}} 之间的页码。",
+    "rangeError": "请输入 1 到 {{total}} 之间的整数页码。"
   }
 }

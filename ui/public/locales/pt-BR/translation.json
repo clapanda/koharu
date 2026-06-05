@@ -37,7 +37,8 @@
     "github": "GitHub",
     "version": "Versão: {{version}}",
     "versionUnknown": "Versão: Desconhecida",
-    "language": "Idioma"
+    "language": "Idioma",
+    "processFromPage": "Processar a partir da página..."
   },
   "welcome": {
     "title": "Koharu",
@@ -412,5 +413,12 @@
     },
     "close": "Fechar",
     "retry": "Tentar novamente"
+  },
+  "processFromPage": {
+    "title": "Processar a partir da página",
+    "description": "Processa da página selecionada até a página {{total}}.",
+    "startPage": "Página inicial",
+    "rangeHint": "Digite um número de página de 1 a {{total}}.",
+    "rangeError": "Digite um número inteiro de página de 1 a {{total}}."
   }
 }

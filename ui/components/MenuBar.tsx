@@ -2,11 +2,23 @@
 
 import { CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react'
 import Image from 'next/image'
+import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { fitCanvasToViewport, resetCanvasScale } from '@/components/Canvas'
 import { SettingsDialog, type TabId } from '@/components/SettingsDialog'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Menubar,
   MenubarContent,
@@ -62,8 +74,11 @@ export function MenuBar() {
   const { t } = useTranslation()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabId>('appearance')
+  const [processFromPageOpen, setProcessFromPageOpen] = useState(false)
   const hasPage = useSelectionStore((s) => s.pageId !== null)
-  const hasScene = useScene().scene !== null
+  const { scene } = useScene()
+  const hasScene = scene !== null
+  const pages = useMemo(() => (scene?.pages ? Object.values(scene.pages) : []), [scene?.pages])
   const shortcuts = usePreferencesStore((state) => state.shortcuts)
   const isMac = useMemo(() => getPlatform() === 'mac', [])
 
@@ -73,7 +88,7 @@ export function MenuBar() {
     return id
   }
 
-  const runPipeline = async (opts: { pageId?: string }) => {
+  const runPipeline = async (opts: { pageId?: string; pages?: string[] }) => {
     const cfg = await getConfig()
     if (!cfg.pipeline) return
     const p = cfg.pipeline
@@ -89,9 +104,10 @@ export function MenuBar() {
     ].filter((s): s is string => !!s)
     const editor = useEditorUiStore.getState()
     const prefs = usePreferencesStore.getState()
+    const selectedPages = opts.pages ?? (opts.pageId ? [opts.pageId] : undefined)
     await startPipeline({
       steps,
-      pages: opts.pageId ? [opts.pageId] : undefined,
+      pages: selectedPages,
       targetLanguage: editor.selectedLanguage,
       systemPrompt: prefs.customSystemPrompt,
       defaultFont: prefs.defaultFont,
@@ -103,6 +119,12 @@ export function MenuBar() {
     const cfg = await getConfig()
     if (!cfg.pipeline?.inpainter) return
     await startPipeline({ steps: [cfg.pipeline.inpainter], pages: [pageId] })
+  }
+
+  const runPipelineFromPage = async (startPage: number) => {
+    const selectedPages = pages.slice(startPage - 1).map((page) => page.id)
+    if (selectedPages.length === 0) return
+    await runPipeline({ pages: selectedPages })
   }
 
   const exportItems: MenuItem[] = [
@@ -161,6 +183,12 @@ export function MenuBar() {
           onSelect: () => void runPipeline({}),
           disabled: !hasScene,
           testId: 'menu-process-all',
+        },
+        {
+          label: t('menu.processFromPage'),
+          onSelect: () => setProcessFromPageOpen(true),
+          disabled: pages.length === 0,
+          testId: 'menu-process-from-page',
         },
       ],
     },
@@ -341,6 +369,12 @@ export function MenuBar() {
       </Menubar>
       <div data-tauri-drag-region className='flex h-full flex-1 items-center justify-center' />
       {isWindowsTauri && <WindowControls />}
+      <ProcessFromPageDialog
+        open={processFromPageOpen}
+        totalPages={pages.length}
+        onOpenChange={setProcessFromPageOpen}
+        onConfirm={(startPage) => void runPipelineFromPage(startPage)}
+      />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} />
     </div>
   )
@@ -417,5 +451,82 @@ function WindowControls() {
         <XIcon className='size-4' />
       </button>
     </div>
+  )
+}
+
+type ProcessFromPageDialogProps = {
+  open: boolean
+  totalPages: number
+  onOpenChange: (open: boolean) => void
+  onConfirm: (startPage: number) => void
+}
+
+function ProcessFromPageDialog({
+  open,
+  totalPages,
+  onOpenChange,
+  onConfirm,
+}: ProcessFromPageDialogProps) {
+  const { t } = useTranslation()
+  const [startPageInput, setStartPageInput] = useState('1')
+
+  useEffect(() => {
+    if (open) setStartPageInput('1')
+  }, [open])
+
+  const startPage = Number(startPageInput)
+  const validStartPage = Number.isInteger(startPage) && startPage >= 1 && startPage <= totalPages
+  const showError = startPageInput.trim().length > 0 && !validStartPage
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!validStartPage) return
+    onConfirm(startPage)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='w-[420px] max-w-[92vw]'>
+        <DialogHeader>
+          <DialogTitle>{t('processFromPage.title')}</DialogTitle>
+          <DialogDescription>
+            {t('processFromPage.description', { total: totalPages })}
+          </DialogDescription>
+        </DialogHeader>
+        <form className='space-y-4' onSubmit={submit}>
+          <div className='space-y-2'>
+            <Label htmlFor='process-from-page-input'>{t('processFromPage.startPage')}</Label>
+            <Input
+              id='process-from-page-input'
+              data-testid='process-from-page-input'
+              type='number'
+              min={1}
+              max={Math.max(totalPages, 1)}
+              step={1}
+              value={startPageInput}
+              aria-invalid={showError || undefined}
+              onChange={(event) => setStartPageInput(event.target.value)}
+            />
+            <p className='text-xs text-muted-foreground'>
+              {t('processFromPage.rangeHint', { total: totalPages })}
+            </p>
+            {showError && (
+              <p className='text-xs text-destructive' data-testid='process-from-page-error'>
+                {t('processFromPage.rangeError', { total: totalPages })}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type='submit' disabled={!validStartPage} data-testid='process-from-page-submit'>
+              {t('common.confirm')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

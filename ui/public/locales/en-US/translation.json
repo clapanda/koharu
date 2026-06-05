@@ -52,7 +52,8 @@
       "tr-TR": "Türkçe",
       "ko-KR": "한국어",
       "pt-BR": "Português brasileiro"
-    }
+    },
+    "processFromPage": "Process from page..."
   },
   "welcome": {
     "title": "Koharu",
@@ -448,5 +449,12 @@
     },
     "close": "Close",
     "retry": "Retry"
+  },
+  "processFromPage": {
+    "title": "Process from page",
+    "description": "Process pages from the selected page through page {{total}}.",
+    "startPage": "Start page",
+    "rangeHint": "Enter a page number from 1 to {{total}}.",
+    "rangeError": "Enter a whole page number from 1 to {{total}}."
   }
 }
