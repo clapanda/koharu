@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicBool;
 
 use axum::Json;
 use axum::extract::State;
+use dashmap::DashMap;
 use koharu_app::pipeline::{
     self, PipelineRunOptions, PipelineSpec, ProgressTick, Scope, WarningTick,
 };
@@ -27,6 +28,8 @@ use crate::routes::operations::{register_cancel, unregister_cancel};
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::default().routes(routes!(start_pipeline))
 }
+
+const MAX_RETAINED_FINISHED_JOBS: usize = 64;
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -146,7 +149,7 @@ async fn start_pipeline(
     tokio::spawn(async move {
         let result = pipeline::run(
             session_c,
-            registry_c,
+            registry_c.clone(),
             runtime_c,
             cpu,
             llm_c,
@@ -157,6 +160,10 @@ async fn start_pipeline(
             Some(warning_sink),
         )
         .await;
+        // Pipeline engines hold large ML sessions. Drop the registry's cached
+        // references once this run is done; concurrently running steps keep
+        // their own `Arc`s, so this does not interrupt active work.
+        registry_c.clear();
         let (status, error) = match &result {
             Ok(outcome) if outcome.warning_count == 0 => (JobStatus::Completed, None),
             Ok(outcome) => (
@@ -181,6 +188,7 @@ async fn start_pipeline(
                 error: error.clone(),
             },
         );
+        prune_finished_jobs(&app_c.jobs);
         app_c.bus.publish(AppEvent::JobFinished(JobFinishedEvent {
             id: op_id_c.clone(),
             status,
@@ -190,4 +198,59 @@ async fn start_pipeline(
     });
 
     Ok(Json(StartPipelineResponse { operation_id }))
+}
+
+fn prune_finished_jobs(jobs: &DashMap<String, JobSummary>) {
+    let finished_ids = jobs
+        .iter()
+        .filter(|entry| entry.status != JobStatus::Running)
+        .map(|entry| entry.id.clone())
+        .collect::<Vec<_>>();
+    let excess = finished_ids
+        .len()
+        .saturating_sub(MAX_RETAINED_FINISHED_JOBS);
+    for id in finished_ids.into_iter().take(excess) {
+        jobs.remove(&id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prune_finished_jobs_keeps_running_jobs() {
+        let jobs = DashMap::new();
+        for i in 0..(MAX_RETAINED_FINISHED_JOBS + 5) {
+            let id = format!("finished-{i}");
+            jobs.insert(
+                id.clone(),
+                JobSummary {
+                    id,
+                    kind: "pipeline".to_string(),
+                    status: JobStatus::Completed,
+                    error: None,
+                },
+            );
+        }
+        jobs.insert(
+            "running".to_string(),
+            JobSummary {
+                id: "running".to_string(),
+                kind: "pipeline".to_string(),
+                status: JobStatus::Running,
+                error: None,
+            },
+        );
+
+        prune_finished_jobs(&jobs);
+
+        assert_eq!(
+            jobs.iter()
+                .filter(|entry| entry.status != JobStatus::Running)
+                .count(),
+            MAX_RETAINED_FINISHED_JOBS
+        );
+        assert!(jobs.contains_key("running"));
+    }
 }

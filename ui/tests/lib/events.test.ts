@@ -57,6 +57,16 @@ describe('jobs store — SSE-driven reducer', () => {
     })
   })
 
+  it('keeps only a bounded number of finished jobs', () => {
+    for (let i = 0; i < 55; i += 1) {
+      useJobsStore.getState().finished(`done-${i}`, 'completed', null)
+    }
+    useJobsStore.getState().started('running', 'pipeline')
+    const jobs = useJobsStore.getState().jobs
+    expect(Object.values(jobs).filter((j) => j.status !== 'running')).toHaveLength(50)
+    expect(jobs.running).toMatchObject({ status: 'running' })
+  })
+
   it('byStatus filters the registry', () => {
     useJobsStore.getState().setSnapshot([
       { id: 'a', kind: 'pipeline', status: 'running' },

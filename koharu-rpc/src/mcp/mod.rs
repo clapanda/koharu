@@ -203,9 +203,19 @@ impl KoharuServer {
         let cpu = app.cpu_only();
         tokio::spawn(async move {
             let _ = koharu_app::pipeline::run(
-                session, registry, runtime, cpu, llm, renderer, spec, cancel, None, None,
+                session,
+                registry.clone(),
+                runtime,
+                cpu,
+                llm,
+                renderer,
+                spec,
+                cancel,
+                None,
+                None,
             )
             .await;
+            registry.clear();
         });
         Ok(JsonOutput(StartPipelineOutput { job_id }))
     }

@@ -5,6 +5,8 @@ import { immer } from 'zustand/middleware/immer'
 
 import type { JobSummary, JobWarningEvent, PipelineProgress } from '@/lib/api/schemas'
 
+const MAX_RETAINED_FINISHED_JOBS = 50
+
 /**
  * Live job registry, fed by SSE. Keyed by id. `progress` is attached when
  * the backend streams `JobProgress` for a running pipeline job. `warnings`
@@ -34,6 +36,7 @@ export const useJobsStore = create<JobsState>()(
       set((s) => {
         s.jobs = {}
         for (const j of jobs) s.jobs[j.id] = j
+        pruneFinishedJobs(s.jobs)
       }),
     started: (id, kind) =>
       set((s) => {
@@ -66,6 +69,7 @@ export const useJobsStore = create<JobsState>()(
           status,
           error: error ?? null,
         }
+        pruneFinishedJobs(s.jobs)
       }),
     clear: () =>
       set((s) => {
@@ -74,3 +78,10 @@ export const useJobsStore = create<JobsState>()(
     byStatus: (status) => Object.values(get().jobs).filter((j) => j.status === status),
   })),
 )
+
+function pruneFinishedJobs(jobs: Record<string, JobEntry>): void {
+  const finishedIds = Object.keys(jobs).filter((id) => jobs[id]?.status !== 'running')
+  const excess = finishedIds.length - MAX_RETAINED_FINISHED_JOBS
+  if (excess <= 0) return
+  for (const id of finishedIds.slice(0, excess)) delete jobs[id]
+}
